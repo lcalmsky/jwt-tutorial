@@ -1,7 +1,9 @@
 package io.lcalmsky.jwttutorial.domain.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import java.util.Collection;
 import java.util.Set;
+import java.util.stream.Collectors;
 import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.GeneratedValue;
@@ -15,6 +17,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.ToString;
 import lombok.ToString.Exclude;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
 @Entity
 @Getter
@@ -50,7 +53,15 @@ public class User {
   @Exclude
   private Set<Authority> authorities;
 
-  public void setAuthorities(Set<Authority> authorities) {
-    this.authorities = authorities;
+  public static User from(String username, String password,
+      Collection<SimpleGrantedAuthority> authorities) {
+    User user = new User();
+    user.username = username;
+    user.password = password;
+    user.authorities = authorities.stream()
+        .map(SimpleGrantedAuthority::getAuthority)
+        .map(Authority::of)
+        .collect(Collectors.toSet());
+    return user;
   }
 }
