@@ -1,3 +1,13 @@
+![](https://img.shields.io/badge/spring--boot-2.6.3-red) ![](https://img.shields.io/badge/gradle-7.1.1-brightgreen) ![](https://img.shields.io/badge/java-11-blue)
+
+> 본 포스팅은 정은구님의 [Spring Boot JWT Tutorial](https://www.inflearn.com/course/%EC%8A%A4%ED%94%84%EB%A7%81%EB%B6%80%ED%8A%B8-jwt#) 강의를 참고하여 작성하였습니다.  
+> 인프런 내에서도 무료 강의이니 시간 되시는 분은 시청하시는 것을 추천드립니다.  
+> 소스 코드는 [여기](https://github.com/lcalmsky/jwt-tutorial) 있습니다. (commit hash: 4277351)
+> ```shell
+> > git clone https://github.com/lcalmsky/jwt-tutorial.git
+> > git checkout 4277351
+> ```
+
 ## JWT란?
 
 **RFC 7519 웹 표준**으로 JSON 객체를 사용해 토큰 자체에 정보를 저장하고 있는 웹 토큰입니다.
