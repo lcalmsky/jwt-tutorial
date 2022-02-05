@@ -19,4 +19,10 @@ public class Authority {
   @Id
   @Column(name = "authority_name", length = 50)
   private String authorityName;
+
+  public static Authority of(String authorityName) {
+    Authority authority = new Authority();
+    authority.authorityName = authorityName;
+    return authority;
+  }
 }
