@@ -302,7 +302,7 @@ JwtParser를 이용해 토큰을 파싱하면 Claims라는 객체를 얻게 되�
 
 꺼낸 정보들을 가지고 다시 User 객체를 생성해서 Authentication 객체로 반환해주면 됩니다.
 
-User 객체 생성을 위한 static 메서드를 추가되었습니다.
+User 객체 생성을 위한 static 메서드가 추가되었습니다.
 
 ```java
 @Entity
