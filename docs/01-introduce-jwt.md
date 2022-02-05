@@ -106,18 +106,18 @@ public class HelloController {
 
 ## 테스트
 
-애플리케이션 실행 후 [http://localhost:8080/api/hello](http://localhost:8080/api/hello에 접속합니다.
+애플리케이션 실행 후 [http://localhost:8080/api/hello](http://localhost:8080/api/hello)에 접속합니다.
 
-![](![](https://raw.githubusercontent.com/lcalmsky/jwt-tutorial/master/resources/images/01-01.png))
+![](https://raw.githubusercontent.com/lcalmsky/jwt-tutorial/master/resources/images/01-01.png)
 
 security 패키지가 자동으로 로그인 페이지를 띄워줍니다.
 
 로그에서 인증키를 찾아 ID에 user, PW에 인증키를 입력합니다.
 
-![](![](https://raw.githubusercontent.com/lcalmsky/jwt-tutorial/master/resources/images/01-02.png))
+![](https://raw.githubusercontent.com/lcalmsky/jwt-tutorial/master/resources/images/01-02.png)
 
-![](![](https://raw.githubusercontent.com/lcalmsky/jwt-tutorial/master/resources/images/01-03.png))
+![](https://raw.githubusercontent.com/lcalmsky/jwt-tutorial/master/resources/images/01-03.png)
 
 로그인 후 아래처럼 hello라는 문구가 노출되면 성공입니다.
 
-![](![](https://raw.githubusercontent.com/lcalmsky/jwt-tutorial/master/resources/images/01-04.png))
+![](https://raw.githubusercontent.com/lcalmsky/jwt-tutorial/master/resources/images/01-04.png)
