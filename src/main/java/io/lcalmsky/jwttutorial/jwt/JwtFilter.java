@@ -29,7 +29,8 @@ public class JwtFilter extends GenericFilterBean {
     if (tokenProvider.validate(jwt)) {
       Authentication authentication = tokenProvider.resolveFrom(jwt);
       SecurityContextHolder.getContext().setAuthentication(authentication);
-      log.info("valid authentication: {}, uri: {}", authentication.getName(), httpServletRequest.getRequestURI());
+      log.info("valid authentication: {}, uri: {}", authentication.getName(),
+          httpServletRequest.getRequestURI());
     } else {
       log.info("invalid jwt token");
     }
@@ -41,6 +42,6 @@ public class JwtFilter extends GenericFilterBean {
     if (StringUtils.hasText(token) && token.startsWith("Bearer ")) {
       return token.substring(7);
     }
-    throw new IllegalArgumentException("invalid token");
+    return null;
   }
 }
