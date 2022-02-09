@@ -10,325 +10,450 @@
 
 ## Overview
 
-로그인을 구현해 JWT 방식의 인증이 정확하게 동작하는지 확인합니다.
+회원 가입 기능을 개발하고 권한 검증을 확인합니다.
 
-## Implementation
+## 유틸 클래스 작성
 
-먼저 로그인 시 전달할 DTO 클래스를 정의합니다.
+유틸리티 메서드 사용을 위해 SecurityUtils 클래스를 생성합니다.
 
-`/Users/jaime/git-repo/spring-boot-jwt-tutorial/src/main/java/io/lcalmsky/jwttutorial/event/LoginRequest.java`
-
-```java
-package io.lcalmsky.jwttutorial.event;
-
-import javax.validation.constraints.NotNull;
-import javax.validation.constraints.Size;
-import lombok.AccessLevel;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-
-@Data
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class LoginRequest {
-
-  @NotNull
-  @Size(min = 3, max = 50)
-  private String username;
-
-  @NotNull
-  @Size(min = 3, max = 50)
-  private String password;
-}
-```
-
-다음은 토큰 정보를 반환하기 위한 DTO 클래스를 정의합니다.
-
-`/Users/jaime/git-repo/spring-boot-jwt-tutorial/src/main/java/io/lcalmsky/jwttutorial/event/TokenResponse.java`
+`/src/main/java/io/lcalmsky/jwttutorial/util/SecurityUtils.java`
 
 ```java
-package io.lcalmsky.jwttutorial.event;
+package io.lcalmsky.jwttutorial.util;
 
-import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-
-@Data
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
-@AllArgsConstructor
-@Builder
-public class TokenResponse {
-
-  private String token;
-}
-```
-
-회원 가입시 사용할 클래스도 미리 만들어보겠습니다.
-
-`/Users/jaime/git-repo/spring-boot-jwt-tutorial/src/main/java/io/lcalmsky/jwttutorial/event/SignupRequest.java`
-
-```java
-package io.lcalmsky.jwttutorial.event;
-
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonProperty.Access;
-import javax.validation.constraints.NotNull;
-import javax.validation.constraints.Size;
-import lombok.AccessLevel;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-
-@Data
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class SignupRequest {
-  @NotNull
-  @Size(min = 3, max = 50)
-  private String username;
-  @JsonProperty(access = Access.WRITE_ONLY)
-  @NotNull
-  @Size(min = 3, max = 100)
-  private String password;
-  @NotNull
-  @Size(min = 3, max = 50)
-  private String nickname;
-}
-```
-
-여기까지 작성했으면 DB에 회원정보를 저장하기 위해 Repository를 작성하겠습니다.
-
-`/Users/jaime/git-repo/spring-boot-jwt-tutorial/src/main/java/io/lcalmsky/jwttutorial/infra/repository/UserRepository.java`
-
-```java
-package io.lcalmsky.jwttutorial.infra.repository;
-
-import io.lcalmsky.jwttutorial.domain.entity.User;
 import java.util.Optional;
-import org.springframework.data.jpa.repository.EntityGraph;
-import org.springframework.data.jpa.repository.JpaRepository;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
 
-public interface UserRepository extends JpaRepository<User, Long> {
+@Slf4j
+public class SecurityUtils {
 
-  @EntityGraph(attributePaths = "authorities")
-  Optional<User> findOneWithAuthoritiesByUsername(String username); // (1)
+  public static Optional<String> getCurrentUsername() {
+    Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+    if (authentication == null) {
+      log.info("no authentication info found");
+      return Optional.empty();
+    }
+    Object principal = authentication.getPrincipal();
+    if (principal instanceof UserDetails) {
+      UserDetails userDetails = (UserDetails) principal;
+      return Optional.ofNullable(userDetails.getUsername());
+    }
+    if (principal instanceof String) {
+      return Optional.of(principal.toString());
+    }
+    throw new IllegalStateException("invalid authentication");
+  }
 }
 ```
 
-1. username을 기준으로 User 정보를 가져오는데 권한 정보도 같이 가져옵니다. @EntityGraph 애너테이션을 이용해 fetch join을 수행하도록 합니다. 자세한 내용은 [이 포스팅](https://jaime-note.tistory.com/54?category=849450)을 참고해주세요.
+SecurityContext의 인증 정보를 가져와 username을 반환해주는 간단한 유틸 메서드를 구현했습니다.
 
-다음으로 spring security의 인증 방식을 동작시키기 위해 필요한 UserDetailsService의 구현체를 작성하겠습니다.
+## 회원 서비스 작성
 
-`/Users/jaime/git-repo/spring-boot-jwt-tutorial/src/main/java/io/lcalmsky/jwttutorial/application/UserService.java`
+회원 가입, 회원 정보 조회 등을 사용하기 위해 MemberService를 생성합니다.
+
+`/src/main/java/io/lcalmsky/jwttutorial/application/MemberService.java`
 
 ```java
 package io.lcalmsky.jwttutorial.application;
 
 import io.lcalmsky.jwttutorial.domain.entity.User;
+import io.lcalmsky.jwttutorial.event.SignupRequest;
+import io.lcalmsky.jwttutorial.exception.UserAlreadyRegisteredException;
 import io.lcalmsky.jwttutorial.infra.repository.UserRepository;
-import java.util.stream.Collectors;
+import io.lcalmsky.jwttutorial.util.SecurityUtils;
+import java.util.Collections;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-@Service("userDetailsService")
+@Service
 @RequiredArgsConstructor
-public class UserService implements UserDetailsService {
+@Transactional(readOnly = true)
+public class MemberService {
 
   private final UserRepository userRepository;
+  private final PasswordEncoder passwordEncoder;
 
-  @Override
-  public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-    User user = userRepository.findOneWithAuthoritiesByUsername(username)
-        .orElseThrow(
-            () -> new UsernameNotFoundException(String.format("'%s' not found", username)));
-    if (!user.isActivated()) {
-      throw new IllegalStateException(String.format("'%s' is not activated", username));
+  @Transactional(readOnly = false)
+  public User signup(SignupRequest signupRequest) {
+    User userInDb = userRepository.findOneWithAuthoritiesByUsername(signupRequest.getUsername())
+        .orElse(null);
+    if (userInDb != null) {
+      throw UserAlreadyRegisteredException.thrown();
     }
-    return new org.springframework.security.core.userdetails.User(user.getUsername(),
-        user.getPassword(), user.getAuthorities().stream()
-        .map(authority -> new SimpleGrantedAuthority(authority.getAuthorityName()))
-        .collect(Collectors.toSet()));
+    User user = User.create(signupRequest.getUsername(),
+        passwordEncoder.encode(signupRequest.getPassword()),
+        signupRequest.getNickname(),
+        Collections.singleton(new SimpleGrantedAuthority("ROLE_USER")));
+    return userRepository.save(user);
+  }
+
+  public Optional<User> getUserWithAuthorities(String username) {
+    return userRepository.findOneWithAuthoritiesByUsername(username);
+  }
+
+  public Optional<User> me() {
+    return SecurityUtils.getCurrentUsername()
+        .flatMap(userRepository::findOneWithAuthoritiesByUsername);
   }
 }
 ```
 
-1. UserDetailsService를 구현하게 합니다.
-2. DB에서 사용자 정보를 찾아 UserDetails의 구현체인 User(우리가 작성한 User와 다른 클래스) 객체를 생성하여 반환합니다.
+회원 가입 및 사용자 조회에 관련된 기능을 구현했습니다.
 
-다음으로 로그인을 처리하기위해 컨트롤러를 생성합니다.
+MemberService에서 사용한 Exception 클래스 입니다.
 
-`/Users/jaime/git-repo/spring-boot-jwt-tutorial/src/main/java/io/lcalmsky/jwttutorial/endpoint/UserController.java`
+`/src/main/java/io/lcalmsky/jwttutorial/exception/UserAlreadyRegisteredException.java`
+
+```java
+package io.lcalmsky.jwttutorial.exception;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.web.client.HttpStatusCodeException;
+
+public class UserAlreadyRegisteredException extends HttpStatusCodeException {
+
+
+  protected UserAlreadyRegisteredException() {
+    super(HttpStatus.CONFLICT, "User already registered");
+  }
+
+  public static UserAlreadyRegisteredException thrown() {
+    return new UserAlreadyRegisteredException();
+  }
+}
+
+```
+
+> 회원가입시 User Entity를 생성하기 위해 User 클래스에 static 메서드를 추가하였습니다. 기존 static 메서드인 from은 사용하지 않아 삭제하였습니다.
+> `/src/main/java/io/lcalmsky/jwttutorial/domain/entity/User.java`
+> 
+> ```java
+> // 생략
+> public class User {
+>   // 생략
+>   public static User create(String username, String password, String nickname,
+>       Collection<SimpleGrantedAuthority> authorities) {
+>     User user = new User();
+>     user.username = username;
+>     user.password = password;
+>     user.nickname = nickname;
+>     user.authorities = authorities.stream()
+>         .map(SimpleGrantedAuthority::getAuthority)
+>         .map(Authority::of)
+>         .collect(Collectors.toSet());
+>     user.activated = true;
+>     return user;
+>   }
+> }
+> ```
+> 
+> <details>
+> <summary>User.java 전체 보기</summary>
+> 
+> ```java
+> package io.lcalmsky.jwttutorial.domain.entity;
+> 
+> import com.fasterxml.jackson.annotation.JsonIgnore;
+> import java.util.Collection;
+> import java.util.Set;
+> import java.util.stream.Collectors;
+> import javax.persistence.Column;
+> import javax.persistence.Entity;
+> import javax.persistence.GeneratedValue;
+> import javax.persistence.GenerationType;
+> import javax.persistence.Id;
+> import javax.persistence.JoinColumn;
+> import javax.persistence.JoinTable;
+> import javax.persistence.ManyToMany;
+> import javax.persistence.Table;
+> import lombok.AccessLevel;
+> import lombok.Getter;
+> import lombok.NoArgsConstructor;
+> import lombok.ToString;
+> import lombok.ToString.Exclude;
+> import org.springframework.security.core.authority.SimpleGrantedAuthority;
+> 
+> @Entity
+> @Getter
+> @Table(name = "user")
+> @NoArgsConstructor(access = AccessLevel.PROTECTED)
+> @ToString
+> public class User {
+> 
+>   @JsonIgnore
+>   @Id
+>   @Column(name = "user_id")
+>   @GeneratedValue(strategy = GenerationType.IDENTITY)
+>   private Long id;
+>   @Column(length = 50, unique = true)
+>   private String username;
+>   @Column(length = 100)
+>   @JsonIgnore
+>   private String password;
+>   @Column(length = 50)
+>   private String nickname;
+>   @JsonIgnore
+>   private boolean activated;
+>   @ManyToMany
+>   @JoinTable(
+>       name = "user_authority",
+>       joinColumns = {
+>           @JoinColumn(name = "user_id", referencedColumnName = "user_id")
+>       },
+>       inverseJoinColumns = {
+>           @JoinColumn(name = "authority_name", referencedColumnName = "authority_name")
+>       }
+>   )
+>   @Exclude
+>   private Set<Authority> authorities;
+> 
+>   public static User create(String username, String password, String nickname,
+>       Collection<SimpleGrantedAuthority> authorities) {
+>     User user = new User();
+>     user.username = username;
+>     user.password = password;
+>     user.nickname = nickname;
+>     user.authorities = authorities.stream()
+>         .map(SimpleGrantedAuthority::getAuthority)
+>         .map(Authority::of)
+>         .collect(Collectors.toSet());
+>     user.activated = true;
+>     return user;
+>   }
+> }
+> ```
+> 
+> </details>
+
+## 회원 컨트롤러 작성
+
+클라이언트의 요청을 받아 줄 엔드포인트인 MemberController 클래스를 생성합니다.
+
+`/src/main/java/io/lcalmsky/jwttutorial/endpoint/MemberController.java`
 
 ```java
 package io.lcalmsky.jwttutorial.endpoint;
 
-import io.lcalmsky.jwttutorial.event.LoginRequest;
-import io.lcalmsky.jwttutorial.event.TokenResponse;
-import io.lcalmsky.jwttutorial.jwt.TokenProvider;
+import io.lcalmsky.jwttutorial.application.MemberService;
+import io.lcalmsky.jwttutorial.event.SignupRequest;
+import io.lcalmsky.jwttutorial.event.UserResponse;
+import io.lcalmsky.jwttutorial.exception.UserNotFoundException;
 import javax.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.http.MediaType;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api")
 @RequiredArgsConstructor
-public class UserController {
+public class MemberController {
 
-  private final TokenProvider tokenProvider;
-  private final AuthenticationManagerBuilder authenticationManagerBuilder;
+  private final MemberService memberService;
 
-  @PostMapping("/login")
-  public ResponseEntity<TokenResponse> authorize(@Valid @RequestBody LoginRequest loginRequest) {
-    UsernamePasswordAuthenticationToken authenticationToken = new UsernamePasswordAuthenticationToken(
-        loginRequest.getUsername(), loginRequest.getPassword());
-    Authentication authentication = authenticationManagerBuilder.getObject()
-        .authenticate(authenticationToken);
-    SecurityContextHolder.getContext().setAuthentication(authenticationToken);
-    String jwt = tokenProvider.createFrom(authentication);
-    return ResponseEntity.ok()
-        .header(HttpHeaders.AUTHORIZATION, "Bearer " + jwt)
-        .body(TokenResponse.builder().token(jwt).build());
+  @PostMapping(value = "/signup", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
+  @ResponseBody
+  public UserResponse signup(@Valid @RequestBody SignupRequest signupRequest) {
+    return UserResponse.of(memberService.signup(signupRequest));
+  }
+
+  @GetMapping(value = "/me", produces = MediaType.APPLICATION_JSON_VALUE)
+  @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
+  @ResponseBody
+  public UserResponse me() {
+    return memberService.me()
+        .map(UserResponse::of)
+        .orElse(null);
+  }
+
+  @GetMapping(value = "/member/{username}", produces = MediaType.APPLICATION_JSON_VALUE)
+  @PreAuthorize("hasRole('ADMIN')")
+  @ResponseBody
+  public UserResponse getUser(@PathVariable String username) {
+    return memberService.getUserWithAuthorities(username)
+        .map(UserResponse::of)
+        .orElseThrow(UserNotFoundException::thrown);
   }
 }
-
 ```
 
-SecurityConfig 클래스에서 JwtFilter를 등록하는 부분을 수정하였습니다. (JwtSecurityConfig를 삭제하였습니다.)
+대부분 UserService의 메서드를 호출하는 역할이고, @PreAuthorize 애너테이션을 이용해 권한 별로 접근을 제한하였습니다.
 
-`/Users/jaime/git-repo/spring-boot-jwt-tutorial/src/main/java/io/lcalmsky/jwttutorial/config/SecurityConfig.java`
+MemberController에서 사용한 Exception 입니다.
+
+`/src/main/java/io/lcalmsky/jwttutorial/exception/UserNotFoundException.java`
 
 ```java
-// 생략
-public class SecurityConfig extends WebSecurityConfigurerAdapter {
-  // 생략
-  @Override
-  protected void configure(HttpSecurity http) throws Exception {
-    http
-        .csrf().disable()
-        .exceptionHandling()
-        .authenticationEntryPoint(jwtAuthenticationEntryPoint)
-        .accessDeniedHandler(jwtAccessDeniedHandler)
-        .and()
-        .headers()
-        .frameOptions()
-        .sameOrigin()
-        .and()
-        .sessionManagement()
-        .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-        .and()
-        .authorizeRequests()
-        .antMatchers("/api/hello", "/api/login", "/api/signup").permitAll()
-        .anyRequest().authenticated()
-        .and()
-        .addFilterBefore(new JwtFilter(tokenProvider), UsernamePasswordAuthenticationFilter.class); // 필터를 바로 등록하도록 수정하였습니다.
+package io.lcalmsky.jwttutorial.exception;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.web.client.HttpStatusCodeException;
+
+public class UserNotFoundException extends HttpStatusCodeException {
+
+  protected UserNotFoundException() {
+    super(HttpStatus.NOT_FOUND, "User not found");
   }
-  // 생략
+
+  public static UserNotFoundException thrown() {
+    return new UserNotFoundException();
+  }
 }
 ```
 
-<details>
-<summary>SecurityConfig.java 전체 보기</summary>
+응답 값으로 사용하고 있는 UserResponse 클래스입니다.
+
+`/src/main/java/io/lcalmsky/jwttutorial/event/UserResponse.java`
 
 ```java
-package io.lcalmsky.jwttutorial.config;
+package io.lcalmsky.jwttutorial.event;
 
-import io.lcalmsky.jwttutorial.jwt.JwtAccessDeniedHandler;
-import io.lcalmsky.jwttutorial.jwt.JwtAuthenticationEntryPoint;
-import io.lcalmsky.jwttutorial.jwt.JwtFilter;
-import io.lcalmsky.jwttutorial.jwt.TokenProvider;
-import lombok.RequiredArgsConstructor;
-import org.springframework.context.annotation.Bean;
-import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
-import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.builders.WebSecurity;
-import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
-import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import io.lcalmsky.jwttutorial.domain.entity.Authority;
+import io.lcalmsky.jwttutorial.domain.entity.User;
+import java.util.Set;
+import lombok.AccessLevel;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
-@EnableWebSecurity
-@EnableGlobalMethodSecurity(prePostEnabled = true)
-@RequiredArgsConstructor
-public class SecurityConfig extends WebSecurityConfigurerAdapter {
+@Data
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+public class UserResponse {
 
-  private final TokenProvider tokenProvider;
-  private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
-  private final JwtAccessDeniedHandler jwtAccessDeniedHandler;
+  private String username;
+  private String nickname;
+  private Set<Authority> authorities;
 
-  @Override
-  protected void configure(HttpSecurity http) throws Exception {
-    http
-        .csrf().disable()
-        .exceptionHandling()
-        .authenticationEntryPoint(jwtAuthenticationEntryPoint)
-        .accessDeniedHandler(jwtAccessDeniedHandler)
-        .and()
-        .headers()
-        .frameOptions()
-        .sameOrigin()
-        .and()
-        .sessionManagement()
-        .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-        .and()
-        .authorizeRequests()
-        .antMatchers("/api/hello", "/api/login", "/api/signup").permitAll()
-        .anyRequest().authenticated()
-        .and()
-        .addFilterBefore(new JwtFilter(tokenProvider), UsernamePasswordAuthenticationFilter.class);
-  }
-
-  @Override
-  public void configure(WebSecurity web) throws Exception {
-    web.ignoring().antMatchers("/h2-console/**", "/favicon.ico", "/error");
-  }
-
-  @Bean
-  public PasswordEncoder passwordEncoder() {
-    return new BCryptPasswordEncoder();
+  public static UserResponse of(User user) {
+    UserResponse userResponse = new UserResponse();
+    userResponse.username = user.getUsername();
+    userResponse.nickname = user.getNickname();
+    userResponse.authorities = user.getAuthorities();
+    return userResponse;
   }
 }
 ```
 
-</details>
+## 테스트
 
-## Test
+여기까지 구현이 끝났다면 애플리케이션을 실행하고 이전과 마찬가지로 클라이언트 툴(저는 IntelliJ의 HTTP Request를 사용하였습니다)을 이용해 테스트 합니다.
 
-여기까지 작성을 완료했으면 애플리케이션을 실행하고 클라이언트 툴로 테스트합니다.
-
-POST 오청이라 Body를 만들어서 전달해야 하므로 브라우저만으로는 테스트가 불가능합니다.
-
-전 IntelliJ를 사용중이라 HttpRequest 기능을 이용했습니다.
-
-애플리케이션이 시작할 때 테스트 데이터가 입력되게 하였으므로([참고](https://jaime-note.tistory.com/232))) 이미 등록한 데이터로 요청해줍니다.
+> 테스트 코드 작성을 해야하는 것이 당연하지만, 스프링 부트 애플리케이션 개발보다는 JWT 구현에 초점을 맞추고 있는 점 양해부탁드립니다.
 
 ```http request
+### authenticate
+
 POST localhost:8080/api/login
 Content-Type: application/json
+Accept: application/json
+
+{
+  "username": "test",
+  "password": "test"
+}
+
+> {%
+client.global.set("authorization", response.body.token)
+ %}
+
+### signup
+POST localhost:8080/api/signup
+Content-Type: application/json
+Accept: application/json
+
+{
+  "username": "test",
+  "password": "test",
+  "nickname": "test"
+}
+
+### me
+GET localhost:8080/api/me
+Accept: application/json
+Authorization: Bearer {{authorization}}
+
+### user
+GET localhost:8080/api/member/admin
+Accept: application/json
+Authorization: Bearer {{authorization}}
+```
+
+기존 login API이후 스크립트를 추가하여 응답의 token 값을 글로벌 변수로 저장하도록 하였습니다.
+
+자기 자신 조회, 다른 사용자 조회에서 Authorization 헤더에서 해당 글로벌 변수를 사용하는 것을 확인할 수 있습니다.
+
+그럼 1. signup, 2. login, 3. me, 4. admin 순서로 테스트해보겠습니다.
+
+먼저 회원 가입을 테스트 해보면,
+
+![](https://raw.githubusercontent.com/lcalmsky/jwt-tutorial/master/resources/images/05-01.png)
+
+정상적으로 가입되어 사용자 정보를 반환한 것을 확인할 수 있습니다.
+
+다음으로 로그인을 시도하면,
+
+![](https://raw.githubusercontent.com/lcalmsky/jwt-tutorial/master/resources/images/05-02.png)
+
+인증에 성공해 토큰을 발급받은 것을 확인할 수 있습니다.
+
+다음으로 자신의 정보를 조회하는 API를 호출해보겠습니다.
+
+![](https://raw.githubusercontent.com/lcalmsky/jwt-tutorial/master/resources/images/05-03.png)
+
+조회에 성공하였고, 다른 사용자(admin)의 정보를 조회하게되면,
+
+![](https://raw.githubusercontent.com/lcalmsky/jwt-tutorial/master/resources/images/05-04.png)
+
+admin 권한이 없기 때문에 403 FORBIDDEN 에러를 받은 것을 확인할 수 있습니다.
+
+> 에러 핸들러를 추가하지 않아 응답이 깔끔하진 않지만 역시 JWT 기능 테스트에 초점을 두고 있는 포스팅인 점 감안해주세요 :)
+
+마지막으로 admin으로 로그인해서 test 계정을 조회해보겠습니다.
+
+```http request
+### admin login
+POST localhost:8080/api/login
+Content-Type: application/json
+Accept: application/json
 
 {
   "username": "admin",
   "password": "admin"
 }
+
+> {%
+client.global.set("authorization", response.body.token)
+ %}
+
+### find 'test'
+GET localhost:8080/api/member/test
+Accept: application/json
+Authorization: Bearer {{authorization}}
 ```
 
-![](https://raw.githubusercontent.com/lcalmsky/jwt-tutorial/master/resources/images/04-01.png)
+이렇게 두 개의 API 요청을 추가한 뒤 login API를 호출해서 admin 계정으로 토큰을 발급받습니다.
 
-정상적으로 토큰이 발급된 것을 확인할 수 있습니다.
+![](https://raw.githubusercontent.com/lcalmsky/jwt-tutorial/master/resources/images/05-05.png)
+
+다음으로 test 계정의 정보를 요청합니다.
+
+![](https://raw.githubusercontent.com/lcalmsky/jwt-tutorial/master/resources/images/05-05.png)
+
+admin 계정은 `ADMIN` 권한을 가지고 있기 때문에 해당 API에 대해 성공한 것을 확인할 수 있습니다.
 
 ---
 
-다음 포스트에서 회원 가입과 권한 검증까지 테스트하면서 JWT 튜토리얼을 마무리짓도록 하겠습니다.
+여기까지 JWT 튜토리얼을 모두 완료하였습니다.

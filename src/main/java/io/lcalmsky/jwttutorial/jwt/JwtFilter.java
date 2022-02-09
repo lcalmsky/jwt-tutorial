@@ -23,7 +23,7 @@ public class JwtFilter extends GenericFilterBean {
 
   @Override
   public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
-      throws IOException, ServletException { // JWT 토큰의 인증정보를 현재 SecurityContext에 저장하는 역할
+      throws IOException, ServletException {
     HttpServletRequest httpServletRequest = (HttpServletRequest) request;
     String jwt = resolveToken(httpServletRequest);
     if (tokenProvider.validate(jwt)) {

@@ -7,6 +7,7 @@ import java.util.stream.Collectors;
 import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.GeneratedValue;
+import javax.persistence.GenerationType;
 import javax.persistence.Id;
 import javax.persistence.JoinColumn;
 import javax.persistence.JoinTable;
@@ -29,7 +30,7 @@ public class User {
   @JsonIgnore
   @Id
   @Column(name = "user_id")
-  @GeneratedValue
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
   private Long id;
   @Column(length = 50, unique = true)
   private String username;
@@ -53,15 +54,17 @@ public class User {
   @Exclude
   private Set<Authority> authorities;
 
-  public static User from(String username, String password,
+  public static User create(String username, String password, String nickname,
       Collection<SimpleGrantedAuthority> authorities) {
     User user = new User();
     user.username = username;
     user.password = password;
+    user.nickname = nickname;
     user.authorities = authorities.stream()
         .map(SimpleGrantedAuthority::getAuthority)
         .map(Authority::of)
         .collect(Collectors.toSet());
+    user.activated = true;
     return user;
   }
 }

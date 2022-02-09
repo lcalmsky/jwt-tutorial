@@ -10,7 +10,6 @@ import io.jsonwebtoken.UnsupportedJwtException;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import io.jsonwebtoken.security.SecurityException;
-import io.lcalmsky.jwttutorial.domain.entity.User;
 import java.util.Collection;
 import java.util.Date;
 import java.util.stream.Collectors;
@@ -23,6 +22,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.User;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -75,7 +75,7 @@ public class TokenProvider implements
             String.valueOf(claims.get(AUTHORITIES)).split(","))
         .map(SimpleGrantedAuthority::new)
         .collect(Collectors.toList());
-    User principal = User.from(claims.getSubject(), "", authorities);
+    User principal = new User(claims.getSubject(), "", authorities);
     return new UsernamePasswordAuthenticationToken(principal, token, authorities);
   }
 
