@@ -30,7 +30,7 @@ public class UserController {
         loginRequest.getUsername(), loginRequest.getPassword());
     Authentication authentication = authenticationManagerBuilder.getObject()
         .authenticate(authenticationToken);
-    SecurityContextHolder.getContext().setAuthentication(authenticationToken);
+    SecurityContextHolder.getContext().setAuthentication(authentication);
     String jwt = tokenProvider.createFrom(authentication);
     return ResponseEntity.ok()
         .header(HttpHeaders.AUTHORIZATION, "Bearer " + jwt)
