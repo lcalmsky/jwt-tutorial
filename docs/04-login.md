@@ -2,11 +2,13 @@
 
 > 본 포스팅은 정은구님의 [Spring Boot JWT Tutorial](https://www.inflearn.com/course/%EC%8A%A4%ED%94%84%EB%A7%81%EB%B6%80%ED%8A%B8-jwt#) 강의를 참고하여 작성하였습니다.  
 > 인프런 내에서도 무료 강의이니 시간 되시는 분은 시청하시는 것을 추천드립니다.  
-> 소스 코드는 [여기](https://github.com/lcalmsky/jwt-tutorial) 있습니다. (commit hash: 7729b1a)
+> 소스 코드는 [여기](https://github.com/lcalmsky/jwt-tutorial) 있습니다. (commit hash: e3e968c)
 > ```shell
 > > git clone https://github.com/lcalmsky/jwt-tutorial.git
-> > git checkout 7729b1a
+> > git checkout e3e968c
 > ```
+> 
+> > 잘못 개발한 것을 한참 뒤에 발견하여 부득이하게 브랜치를 따로 따서 commit hash를 수정하였습니다.
 
 ## Overview
 
