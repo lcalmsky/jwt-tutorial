@@ -16,7 +16,7 @@
 
 먼저 로그인 시 전달할 DTO 클래스를 정의합니다.
 
-`/Users/jaime/git-repo/spring-boot-jwt-tutorial/src/main/java/io/lcalmsky/jwttutorial/event/LoginRequest.java`
+`/src/main/java/io/lcalmsky/jwttutorial/event/LoginRequest.java`
 
 ```java
 package io.lcalmsky.jwttutorial.event;
@@ -43,7 +43,7 @@ public class LoginRequest {
 
 다음은 토큰 정보를 반환하기 위한 DTO 클래스를 정의합니다.
 
-`/Users/jaime/git-repo/spring-boot-jwt-tutorial/src/main/java/io/lcalmsky/jwttutorial/event/TokenResponse.java`
+`/src/main/java/io/lcalmsky/jwttutorial/event/TokenResponse.java`
 
 ```java
 package io.lcalmsky.jwttutorial.event;
@@ -66,7 +66,7 @@ public class TokenResponse {
 
 회원 가입시 사용할 클래스도 미리 만들어보겠습니다.
 
-`/Users/jaime/git-repo/spring-boot-jwt-tutorial/src/main/java/io/lcalmsky/jwttutorial/event/SignupRequest.java`
+`/src/main/java/io/lcalmsky/jwttutorial/event/SignupRequest.java`
 
 ```java
 package io.lcalmsky.jwttutorial.event;
@@ -97,7 +97,7 @@ public class SignupRequest {
 
 여기까지 작성했으면 DB에 회원정보를 저장하기 위해 Repository를 작성하겠습니다.
 
-`/Users/jaime/git-repo/spring-boot-jwt-tutorial/src/main/java/io/lcalmsky/jwttutorial/infra/repository/UserRepository.java`
+`/src/main/java/io/lcalmsky/jwttutorial/infra/repository/UserRepository.java`
 
 ```java
 package io.lcalmsky.jwttutorial.infra.repository;
@@ -118,7 +118,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
 다음으로 spring security의 인증 방식을 동작시키기 위해 필요한 UserDetailsService의 구현체를 작성하겠습니다.
 
-`/Users/jaime/git-repo/spring-boot-jwt-tutorial/src/main/java/io/lcalmsky/jwttutorial/application/UserService.java`
+`/src/main/java/io/lcalmsky/jwttutorial/application/UserService.java`
 
 ```java
 package io.lcalmsky.jwttutorial.application;
@@ -160,7 +160,7 @@ public class UserService implements UserDetailsService {
 
 다음으로 로그인을 처리하기위해 컨트롤러를 생성합니다.
 
-`/Users/jaime/git-repo/spring-boot-jwt-tutorial/src/main/java/io/lcalmsky/jwttutorial/endpoint/UserController.java`
+`/src/main/java/io/lcalmsky/jwttutorial/endpoint/UserController.java`
 
 ```java
 package io.lcalmsky.jwttutorial.endpoint;
@@ -207,7 +207,7 @@ public class UserController {
 
 SecurityConfig 클래스에서 JwtFilter를 등록하는 부분을 수정하였습니다. (JwtSecurityConfig를 삭제하였습니다.)
 
-`/Users/jaime/git-repo/spring-boot-jwt-tutorial/src/main/java/io/lcalmsky/jwttutorial/config/SecurityConfig.java`
+`/src/main/java/io/lcalmsky/jwttutorial/config/SecurityConfig.java`
 
 ```java
 // 생략
