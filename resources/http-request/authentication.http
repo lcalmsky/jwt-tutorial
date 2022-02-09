@@ -1,7 +1,54 @@
+### authenticate
+
 POST localhost:8080/api/login
 Content-Type: application/json
+Accept: application/json
+
+{
+  "username": "test",
+  "password": "test"
+}
+
+> {%
+client.global.set("authorization", response.body.token)
+ %}
+
+### signup
+POST localhost:8080/api/signup
+Content-Type: application/json
+Accept: application/json
+
+{
+  "username": "test",
+  "password": "test",
+  "nickname": "test"
+}
+
+### me
+GET localhost:8080/api/me
+Accept: application/json
+Authorization: Bearer {{authorization}}
+
+### user
+GET localhost:8080/api/member/admin
+Accept: application/json
+Authorization: Bearer {{authorization}}
+
+### admin login
+POST localhost:8080/api/login
+Content-Type: application/json
+Accept: application/json
 
 {
   "username": "admin",
   "password": "admin"
 }
+
+> {%
+client.global.set("authorization", response.body.token)
+ %}
+
+### find 'test'
+GET localhost:8080/api/member/test
+Accept: application/json
+Authorization: Bearer {{authorization}}
