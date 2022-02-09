@@ -170,7 +170,7 @@ import io.jsonwebtoken.UnsupportedJwtException;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import io.jsonwebtoken.security.SecurityException;
-import io.lcalmsky.jwttutorial.domain.entity.User;
+import org.springframework.security.core.userdetails.User;
 import java.util.Collection;
 import java.util.Date;
 import java.util.stream.Collectors;
@@ -187,8 +187,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 @Slf4j
-public class TokenProvider implements
-    InitializingBean {
+public class TokenProvider implements InitializingBean {
 
   public static final String AUTHORITIES = "auth";
   private final String secret;
@@ -204,18 +203,18 @@ public class TokenProvider implements
   }
 
   @Override
-  public void afterPropertiesSet() throws Exception { 
+  public void afterPropertiesSet() throws Exception {
     byte[] decoded = Decoders.BASE64.decode(secret);
     this.key = Keys.hmacShaKeyFor(decoded);
   }
 
-  public String createFrom(Authentication authentication) { 
-    String authorities = authentication.getAuthorities().stream() 
+  public String createFrom(Authentication authentication) {
+    String authorities = authentication.getAuthorities().stream()
         .map(GrantedAuthority::getAuthority)
         .collect(Collectors.joining(","));
     long now = new Date().getTime();
     Date expiration = new Date(now + expiredTime);
-    return Jwts.builder() 
+    return Jwts.builder()
         .setSubject(authentication.getName())
         .claim(AUTHORITIES, authorities)
         .signWith(key, SignatureAlgorithm.HS512)
@@ -235,7 +234,7 @@ public class TokenProvider implements
             String.valueOf(claims.get(AUTHORITIES)).split(","))
         .map(SimpleGrantedAuthority::new)
         .collect(Collectors.toList());
-    User principal = User.from(claims.getSubject(), "", authorities);
+    User principal = new User(claims.getSubject(), "", authorities);
     return new UsernamePasswordAuthenticationToken(principal, token, authorities);
   }
 
@@ -282,128 +281,27 @@ public String createFrom(Authentication authentication) {
 
 ```java
 public Authentication resolveFrom(String token) {
-    JwtParser jwtParser = Jwts
-        .parserBuilder()
-        .setSigningKey(key)
-        .build();
-    Claims claims = jwtParser
-        .parseClaimsJws(token)
-        .getBody();
-    Collection<SimpleGrantedAuthority> authorities = Stream.of(
-            String.valueOf(claims.get(AUTHORITIES)).split(","))
-        .map(SimpleGrantedAuthority::new)
-        .collect(Collectors.toList());
-    User principal = User.from(claims.getSubject(), "", authorities);
-    return new UsernamePasswordAuthenticationToken(principal, token, authorities);
+  JwtParser jwtParser = Jwts
+      .parserBuilder()
+      .setSigningKey(key)
+      .build();
+  Claims claims = jwtParser
+      .parseClaimsJws(token)
+      .getBody();
+  Collection<SimpleGrantedAuthority> authorities = Stream.of(
+          String.valueOf(claims.get(AUTHORITIES)).split(","))
+      .map(SimpleGrantedAuthority::new)
+      .collect(Collectors.toList());
+  User principal = new User(claims.getSubject(), "", authorities);
+  return new UsernamePasswordAuthenticationToken(principal, token, authorities);
 }
 ```
 
 JwtParser를 이용해 토큰을 파싱하면 Claims라는 객체를 얻게 되고, 이 객체에서 인증 정보를 다시 꺼내올 수 있습니다.
 
-꺼낸 정보들을 가지고 다시 User 객체를 생성해서 Authentication 객체로 반환해주면 됩니다.
+꺼낸 정보들을 가지고 다시 User(UserDetails의 구현체, 스프링 시큐리티 제공) 객체를 생성해서 Authentication 객체로 반환해주면 됩니다.
 
-User 객체 생성을 위한 static 메서드를 추가되었습니다.
-
-```java
-@Entity
-@Getter
-@Table(name = "user")
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
-@ToString
-public class User {
-
-  // 생략
-  public static User from(String username, String password,
-      Collection<SimpleGrantedAuthority> authorities) {
-    User user = new User();
-    user.username = username;
-    user.password = password;
-    user.authorities = authorities.stream()
-        .map(SimpleGrantedAuthority::getAuthority)
-        .map(Authority::of)
-        .collect(Collectors.toSet());
-    return user;
-  }
-  // 생략
-}
-```
-
-<details>
-<summary>User.java 전체 보기</summary>
-
-```java
-package io.lcalmsky.jwttutorial.domain.entity;
-
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import java.util.Collection;
-import java.util.Set;
-import java.util.stream.Collectors;
-import javax.persistence.Column;
-import javax.persistence.Entity;
-import javax.persistence.GeneratedValue;
-import javax.persistence.Id;
-import javax.persistence.JoinColumn;
-import javax.persistence.JoinTable;
-import javax.persistence.ManyToMany;
-import javax.persistence.Table;
-import lombok.AccessLevel;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.ToString;
-import lombok.ToString.Exclude;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-
-@Entity
-@Getter
-@Table(name = "user")
-@NoArgsConstructor(access = AccessLevel.PROTECTED)
-@ToString
-public class User {
-
-  @JsonIgnore
-  @Id
-  @Column(name = "user_id")
-  @GeneratedValue
-  private Long id;
-  @Column(length = 50, unique = true)
-  private String username;
-  @Column(length = 100)
-  @JsonIgnore
-  private String password;
-  @Column(length = 50)
-  private String nickname;
-  @JsonIgnore
-  private boolean activated;
-  @ManyToMany
-  @JoinTable(
-      name = "user_authority",
-      joinColumns = {
-          @JoinColumn(name = "user_id", referencedColumnName = "user_id")
-      },
-      inverseJoinColumns = {
-          @JoinColumn(name = "authority_name", referencedColumnName = "authority_name")
-      }
-  )
-  @Exclude
-  private Set<Authority> authorities;
-
-  public static User from(String username, String password,
-      Collection<SimpleGrantedAuthority> authorities) {
-    User user = new User();
-    user.username = username;
-    user.password = password;
-    user.authorities = authorities.stream()
-        .map(SimpleGrantedAuthority::getAuthority)
-        .map(Authority::of)
-        .collect(Collectors.toSet());
-    return user;
-  }
-}
-```
-
-</details>
-
-마찬가지로 Authority 객체 생성을 위한 static 메서드가 추가되었습니다.
+Authority 객체 생성을 위한 static 메서드가 추가되었습니다.
 
 ```java
 @Entity
